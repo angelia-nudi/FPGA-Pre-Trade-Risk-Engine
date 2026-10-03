@@ -218,3 +218,28 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Vivado
+.Xil/
+*.runs/
+*.cache/
+*.sim/
+*.gen/
+*.jou
+*.log
+*.str
+*.wdb
+*.pb
+*.dcp
+ip_user_files/
+
+# Cocotb / simulation
+sim_build/
+results.xml
+*.vvp
+
+# Java
+*.class
+
+# VS Code
+.vscode/
