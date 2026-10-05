@@ -7,11 +7,7 @@ def run():
 
     source = (
         project_dir
-        / "FPGA based Trading"
-        / "FPGA based Trading.srcs"
-        / "sources_1"
-        / "new"
-        / "risk_engine.sv"
+        /"RTL"/"risk_engine.sv"
     )
 
     print("COMPILING:", source)
