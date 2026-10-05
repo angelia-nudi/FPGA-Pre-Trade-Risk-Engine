@@ -1,6 +1,6 @@
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, ReadOnly
+from cocotb.triggers import RisingEdge, ReadOnly, Timer
 
 
 def risk_check(quantity, price, max_quantity, max_price, max_notional):
@@ -27,6 +27,11 @@ async def test_risk_engine(dut):
     clock = Clock(dut.clk, 10, unit="ns")
     cocotb.start_soon(clock.start())
 
+    # Limits
+    max_quantity = 200
+    max_price = 30
+    max_notional = 5000
+
     # Initial values
     dut.rst_n.value = 0
     dut.order_valid.value = 0
@@ -44,21 +49,35 @@ async def test_risk_engine(dut):
 
     dut.rst_n.value = 1
 
-    # Test order
-    quantity = 250
-    price = 25
+    
+    # --------------------------------------------------
+    # Test cases
+    # quantity, price, description
+    # --------------------------------------------------
 
+    test_cases = [
+        (100, 20, "Normal valid order"),
+        (250, 25, "Quantity too high"),
+        (100, 31, "Price too high"),
+        (200, 26, "Notional too high"),
+        (200, 25, "Exactly at notional limit"),
+        (200, 30, "Quantity/price valid but notional too high"),
+    ]
+
+    for quantity, price, description in test_cases:
+
+        expected_accept, expected_reason = risk_check(
+            quantity,
+            price,
+            max_quantity,
+            max_price,
+            max_notional
+        )
+
+    # Feed order into RTL
     dut.quantity.value = quantity
     dut.price.value = price
     dut.order_valid.value = 1
-
-    expected_accept, expected_reason = risk_check(
-        quantity,
-        price,
-        200,
-        30,
-        5000
-    )
 
     # FPGA RTL captures values on this rising edge
     await RisingEdge(dut.clk)
@@ -69,13 +88,25 @@ async def test_risk_engine(dut):
     actual_valid = int(dut.decision_valid.value)
     
     cocotb.log.info(
+        f"{description}: "
         f"quantity={quantity}, "
         f"price={price}, "
-        f"expected={expected_accept}, "
-        f"RTL={int(dut.accept.value)}"
-        f"reject reason={int(dut.reject_reason.value)}"
+        f"notional={quantity * price}, "
+        f"expected_accept={expected_accept}, "
+        f"RTL_accept={actual_accept}, "
+        f"expected_reason={expected_reason:02b}, "
+        f"RTL_reason={actual_reason:02b}"
     )
 
     assert actual_valid == 1
     assert actual_accept == expected_accept
     assert actual_reason == expected_reason
+
+    # Leave the ReadOnly phase before changing DUT inputs
+    await Timer(1, unit="ns")
+
+    # Drop valid between orders
+    dut.order_valid.value = 0
+
+# Allow one clock cycle with no valid order
+    await RisingEdge(dut.clk)
