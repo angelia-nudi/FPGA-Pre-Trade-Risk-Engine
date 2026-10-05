@@ -3,23 +3,27 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, ReadOnly
 
 
-def risk_check(quantity, price, max_quantity, max_price, max_notional, reject_reason):
+def risk_check(quantity, price, max_quantity, max_price, max_notional):
     notional = quantity * price
 
     if quantity > max_quantity:
-        return 0, 1 and print("quantity too high")
+        print("quantity too high")
+        return 0, 1
     elif price > max_price:
+        print("price too high")
         return 0, 2
     elif notional > max_notional:
-        return 0, 3
+        print("notional too high")
+        return 0,3
     else:
+        print("accepted")
         return 1, 0
 
 
 @cocotb.test()
 async def test_risk_engine(dut):
 
-    # Clock
+    # Start 100 MHz clock
     clock = Clock(dut.clk, 10, unit="ns")
     cocotb.start_soon(clock.start())
 
@@ -35,8 +39,8 @@ async def test_risk_engine(dut):
     dut.max_notional.value = 5000
 
     # Hold reset for 2 clocks
-    await RisingEdge(dut.clk)
-    await RisingEdge(dut.clk)
+    #await RisingEdge(dut.clk)
+    #await RisingEdge(dut.clk)
 
     dut.rst_n.value = 1
 
@@ -56,18 +60,22 @@ async def test_risk_engine(dut):
         5000
     )
 
-    # RTL captures values on this rising edge
+    # FPGA RTL captures values on this rising edge
     await RisingEdge(dut.clk)
     await ReadOnly()
-
+    
+    actual_accept = int(dut.accept.value)
+    actual_reason = int(dut.reject_reason.value)
+    actual_valid = int(dut.decision_valid.value)
+    
     cocotb.log.info(
         f"quantity={quantity}, "
         f"price={price}, "
         f"expected={expected_accept}, "
         f"RTL={int(dut.accept.value)}"
-        f"reject reason={reject_reason}"
+        f"reject reason={int(dut.reject_reason.value)}"
     )
 
-    assert int(dut.decision_valid.value) == 1
-    assert int(dut.accept.value) == expected_accept
-    assert int(dut.reject_reason.value) == expected_reason
+    assert actual_valid == 1
+    assert actual_accept == expected_accept
+    assert actual_reason == expected_reason
